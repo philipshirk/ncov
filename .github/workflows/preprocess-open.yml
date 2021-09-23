@@ -1,0 +1,46 @@
+name: preprocess-open
+
+on:
+  ## This workflow is intended to be (mainly) run via a workflow dispatch event sent from
+  ## https://github.com/nextstrain/ncov-ingest/blob/master/.github/workflows/fetch-and-ingest-genbank-master.yml
+  ## Manual running (via GitHub UI) should also be available, if needed
+  workflow_dispatch
+
+jobs:
+  open:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Setup
+      run: ./scripts/setup-github-workflow
+
+    - name: Launch preprocess build
+      # TODO - remove the `--config` override here before release (merge into master)
+      # NOTE - if this runs into GitHub job timeout limits (6h) we can `--detach`
+      run: |
+        set -x
+        nextstrain build \
+          --aws-batch \
+          --cpus 8 \
+          --memory 18GiB \
+            . \
+            upload \
+            --config S3_DST_BUCKET=nextstrain-staging/files/ncov/open/trial/preprocess \
+            --profile nextstrain_profiles/nextstrain-open-preprocess \
+        |& tee build-launch.log
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    - name: Build info
+      # TODO - update S3 path before release
+      run: |
+        echo "--> Preprocessed files will be uploaded as:
+        echo "    s3://nextstrain-staging/files/ncov/open/trial/preprocess/aligned.fasta.xz"
+        echo "    s3://nextstrain-staging/files/ncov/open/trial/preprocess/masked.fasta.xz"
+        echo "    s3://nextstrain-staging/files/ncov/open/trial/preprocess/filtered.fasta.xz"
+        echo "    s3://nextstrain-staging/files/ncov/open/trial/preprocess/mutation-summary.tsv.xz"
+        echo
+        echo "--> Attach command"
+        tail -n1 build-launch.log
